@@ -1,0 +1,834 @@
+{
+  "name": "OODA-INTRADAY — AI Stock Analysis Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "stock-analysis",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c739d1d6-208c-5bf8-ad42-794ff4a784a7",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -360,
+        240
+      ],
+      "webhookId": "c739d1d6-208c-5bf8-ad42-794ff4a784a7"
+    },
+    {
+      "parameters": {},
+      "id": "6fae8952-5fb3-5205-aa0c-1af9fbb5154e",
+      "name": "Manual Trigger (test)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -360,
+        460
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// === INPUT GATE: validate & normalize the request ===\nconst incoming = $input.first().json || {};\nconst body = incoming.body || incoming.query || incoming;\n\nlet symbol = (body.symbol || body.ticker || '').toString().trim().toUpperCase();\nconst warnings = [];\nif (!symbol) {\n  // Keep the workflow demoable from the Manual Trigger; webhook callers should send a symbol.\n  symbol = 'RELIANCE';\n  warnings.push('No \"symbol\" supplied — defaulting to RELIANCE for demo.');\n}\nif (!/^[A-Z0-9.^&-]{1,20}$/.test(symbol)) {\n  throw new Error('VALIDATION_ERROR: symbol \"' + symbol + '\" is not a valid ticker.');\n}\n\n// Map common Indian indices; otherwise route NSE cash symbols to Yahoo (.NS).\nconst indexMap = { 'NIFTY': '^NSEI', 'NIFTY50': '^NSEI', 'BANKNIFTY': '^NSEBANK',\n                   'FINNIFTY': '^CNXFIN', 'SENSEX': '^BSESN' };\nlet yahooSymbol;\nif (indexMap[symbol]) yahooSymbol = indexMap[symbol];\nelse if (symbol.startsWith('^') || symbol.includes('.')) yahooSymbol = symbol;\nelse yahooSymbol = symbol + '.NS';\n\nconst capital = Number(body.capital) > 0 ? Number(body.capital) : 100000;\nlet riskPercent = Number(body.riskPercent);\nif (!(riskPercent > 0)) riskPercent = 1;\nif (riskPercent > 2) { warnings.push('riskPercent capped at 2% by risk policy.'); riskPercent = 2; }\n\nreturn [{ json: {\n  symbol,\n  yahooSymbol,\n  newsQuery: (body.newsQuery || (symbol + ' stock NSE India')),\n  capital,\n  riskPercent,\n  session: (body.session || 'auto').toString(),\n  maxAttempts: 2,\n  requestedAt: new Date().toISOString(),\n  inputWarnings: warnings,\n  feedback: ''\n}}];"
+      },
+      "id": "5627407c-2b01-5ecf-83b9-7e701b7f267e",
+      "name": "Validate & Normalize Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -120,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://query1.finance.yahoo.com/v8/finance/chart/{{ $json.yahooSymbol }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "interval",
+              "value": "5m"
+            },
+            {
+              "name": "range",
+              "value": "5d"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (compatible; n8n-OODA-Intraday/1.0)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "cdb7ec0d-1882-556a-bc90-072ec2ff240a",
+      "name": "Market Data (5m)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        160,
+        60
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://query1.finance.yahoo.com/v8/finance/chart/{{ $json.yahooSymbol }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "interval",
+              "value": "1d"
+            },
+            {
+              "name": "range",
+              "value": "3mo"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (compatible; n8n-OODA-Intraday/1.0)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "d648dcab-270b-5be4-9b0a-93a8dc0b7ac4",
+      "name": "Daily Levels",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        160,
+        240
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://news.google.com/rss/search?q={{ encodeURIComponent($json.newsQuery) }}&hl=en-IN&gl=IN&ceid=IN:en",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (compatible; n8n-OODA-Intraday/1.0)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "06013ab1-7c72-5d59-8989-10327be83d00",
+      "name": "News (Google RSS)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        160,
+        420
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://query1.finance.yahoo.com/v7/finance/spark",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbols",
+              "value": "^NSEI,^NSEBANK,^DJI,^IXIC,CL=F,GC=F,INR=X,^VIX,^INDIAVIX"
+            },
+            {
+              "name": "range",
+              "value": "5d"
+            },
+            {
+              "name": "interval",
+              "value": "1d"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (compatible; n8n-OODA-Intraday/1.0)"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "a9c7fa06-0d66-561c-9920-9b63ea1dd148",
+      "name": "Macro & Global",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        160,
+        600
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "numberInputs": 4,
+        "options": {}
+      },
+      "id": "bd78ea01-10c7-5848-b533-35a7e60d3c1e",
+      "name": "Merge Observe Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        440,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// === OODA OBSERVE: compute technical indicators from gathered market data ===\nconst cfg = $('Validate & Normalize Input').first().json;\nconst num = (x) => { const n = Number(x); return Number.isFinite(n) ? n : null; };\n\nfunction ema(values, period) {\n  const v = values.filter((x) => x != null);\n  if (v.length < period) return null;\n  const k = 2 / (period + 1);\n  let e = v.slice(0, period).reduce((a, b) => a + b, 0) / period;\n  for (let i = period; i < v.length; i++) e = v[i] * k + e * (1 - k);\n  return +e.toFixed(2);\n}\nfunction rsi(closes, period) {\n  const v = closes.filter((x) => x != null);\n  if (v.length < period + 1) return null;\n  let g = 0, l = 0;\n  for (let i = v.length - period; i < v.length; i++) {\n    const d = v[i] - v[i - 1];\n    if (d >= 0) g += d; else l -= d;\n  }\n  const ag = g / period, al = l / period;\n  if (al === 0) return 100;\n  return +(100 - 100 / (1 + ag / al)).toFixed(2);\n}\nfunction atr(highs, lows, closes, period) {\n  const tr = [];\n  for (let i = 1; i < closes.length; i++) {\n    if ([highs[i], lows[i], closes[i - 1]].some((x) => x == null)) continue;\n    tr.push(Math.max(highs[i] - lows[i], Math.abs(highs[i] - closes[i - 1]), Math.abs(lows[i] - closes[i - 1])));\n  }\n  if (tr.length < period) return null;\n  const s = tr.slice(-period);\n  return +(s.reduce((a, b) => a + b, 0) / period).toFixed(2);\n}\n\nconst warnings = [];\n\n// ---- Intraday 5m: VWAP, opening range, last price ----\nlet intraday = {};\ntry {\n  const res = $('Market Data (5m)').first().json.chart.result[0];\n  const ts = res.timestamp || [];\n  const q = res.indicators.quote[0];\n  const tz = (res.meta && res.meta.exchangeTimezoneName) || 'Asia/Kolkata';\n  const rows = ts.map((t, i) => ({ t, h: num(q.high[i]), l: num(q.low[i]), c: num(q.close[i]), v: num(q.volume[i]) }))\n                 .filter((x) => x.c != null);\n  const dayKey = (t) => new Date(t * 1000).toLocaleDateString('en-CA', { timeZone: tz });\n  const lastDay = rows.length ? dayKey(rows[rows.length - 1].t) : null;\n  const today = rows.filter((x) => dayKey(x.t) === lastDay);\n  let cumPV = 0, cumV = 0;\n  today.forEach((x) => { const tp = (x.h + x.l + x.c) / 3; cumPV += tp * (x.v || 0); cumV += (x.v || 0); });\n  const orBars = today.slice(0, 3);\n  const last = today.length ? today[today.length - 1] : rows[rows.length - 1];\n  intraday = {\n    vwap: cumV > 0 ? +(cumPV / cumV).toFixed(2) : null,\n    openingRangeHigh: orBars.length ? +Math.max(...orBars.map((x) => x.h)).toFixed(2) : null,\n    openingRangeLow: orBars.length ? +Math.min(...orBars.map((x) => x.l)).toFixed(2) : null,\n    lastPrice: last ? last.c : (res.meta ? res.meta.regularMarketPrice : null),\n    lastBarVolume: last ? last.v : null,\n    sessionBars: today.length\n  };\n} catch (e) { warnings.push('intraday parse failed: ' + e.message); }\n\n// ---- Daily: PDH/PDL/PDC, EMAs, RSI, ATR, 20-day avg volume ----\nlet daily = {};\ntry {\n  const res = $('Daily Levels').first().json.chart.result[0];\n  const q = res.indicators.quote[0];\n  const closes = (q.close || []).map(num).filter((x) => x != null);\n  const highs = (q.high || []).map(num);\n  const lows = (q.low || []).map(num);\n  const vols = (q.volume || []).map(num);\n  const n = closes.length;\n  daily = {\n    pdc: n >= 2 ? closes[n - 2] : (res.meta ? res.meta.previousClose : null),\n    pdh: highs.length >= 2 ? highs[highs.length - 2] : null,\n    pdl: lows.length >= 2 ? lows[lows.length - 2] : null,\n    ema20: ema(closes, 20),\n    ema50: ema(closes, 50),\n    rsi14: rsi(closes, 14),\n    atr14: atr(highs, lows, closes, 14),\n    avg20Volume: vols.length >= 21 ? Math.round(vols.slice(-21, -1).reduce((a, b) => a + (b || 0), 0) / 20) : null,\n    dailyBars: n\n  };\n} catch (e) { warnings.push('daily parse failed: ' + e.message); }\n\n// ---- Macro / global proxies ----\nlet macro = [];\ntry {\n  const arr = ($('Macro & Global').first().json.spark || {}).result || [];\n  macro = arr.map((s) => {\n    const m = ((s.response && s.response[0]) || {}).meta || {};\n    const last = m.regularMarketPrice != null ? m.regularMarketPrice : null;\n    const prev = m.previousClose != null ? m.previousClose : (m.chartPreviousClose != null ? m.chartPreviousClose : null);\n    return { symbol: s.symbol, last, changePct: (last != null && prev) ? +(((last - prev) / prev) * 100).toFixed(2) : null };\n  });\n} catch (e) { warnings.push('macro parse failed: ' + e.message); }\n\n// ---- News headlines from RSS ----\nlet news = [];\ntry {\n  const raw = $('News (Google RSS)').first().json;\n  const text = typeof raw === 'string' ? raw : (raw.data || raw.body || JSON.stringify(raw));\n  const titles = [...text.matchAll(/<title>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/title>/g)].map((m) => m[1].trim());\n  news = titles.slice(1, 9);\n} catch (e) { warnings.push('news parse failed: ' + e.message); }\n\nconst lastPrice = intraday.lastPrice != null ? intraday.lastPrice : (daily.pdc != null ? daily.pdc : null);\nconst dayChangePct = (lastPrice != null && daily.pdc) ? +(((lastPrice - daily.pdc) / daily.pdc) * 100).toFixed(2) : null;\n\nconst observe = {\n  symbol: cfg.symbol,\n  yahooSymbol: cfg.yahooSymbol,\n  asOf: new Date().toISOString(),\n  price: { last: lastPrice, prevClose: daily.pdc != null ? daily.pdc : null, dayChangePct },\n  levels: {\n    pdh: daily.pdh != null ? daily.pdh : null,\n    pdl: daily.pdl != null ? daily.pdl : null,\n    pdc: daily.pdc != null ? daily.pdc : null,\n    openingRangeHigh: intraday.openingRangeHigh != null ? intraday.openingRangeHigh : null,\n    openingRangeLow: intraday.openingRangeLow != null ? intraday.openingRangeLow : null\n  },\n  technicals: {\n    vwap: intraday.vwap != null ? intraday.vwap : null,\n    ema20: daily.ema20 != null ? daily.ema20 : null,\n    ema50: daily.ema50 != null ? daily.ema50 : null,\n    rsi14: daily.rsi14 != null ? daily.rsi14 : null,\n    atr14: daily.atr14 != null ? daily.atr14 : null,\n    priceVsVwap: (lastPrice != null && intraday.vwap != null) ? (lastPrice >= intraday.vwap ? 'above' : 'below') : null,\n    emaTrend: (daily.ema20 != null && daily.ema50 != null) ? (daily.ema20 >= daily.ema50 ? 'up' : 'down') : null\n  },\n  volume: { lastBar: intraday.lastBarVolume != null ? intraday.lastBarVolume : null, avg20Daily: daily.avg20Volume != null ? daily.avg20Volume : null },\n  macro,\n  news,\n  dataQuality: {\n    intradayBars: intraday.sessionBars || 0,\n    dailyBars: daily.dailyBars || 0,\n    newsCount: news.length,\n    warnings: warnings.concat(cfg.inputWarnings || [])\n  }\n};\n\nreturn [{ json: Object.assign({}, cfg, { observe }) }];"
+      },
+      "id": "b9183697-b8c7-5724-8bd0-eccdd707964a",
+      "name": "Compute Technical Indicators",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ 'MARKET OBSERVATION BRIEF (JSON):\\n' + JSON.stringify($json.observe, null, 2) }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are \"OODA-INTRADAY\", a professional intraday trading analyst and mentor modeled on a senior proprietary desk trader with 10+ years in Indian and global markets. You are NOT a tipster, NOT a buy/sell signal bot, and NOT a financial advisor. You are a structured thinking partner. Prime Directive: no setup = no trade; capital preservation > opportunity. Be direct, professional and calm; show reasoning; quantify everything; use probabilistic language (\"favors\", \"tilts toward\"), never \"will\" or \"guaranteed\". Educational analysis only. Not investment advice.\n\nPHASE: ORIENT. You are given a Market Observation Brief (raw data only). Your job is to synthesize it into a Market Thesis. Do NOT construct a trade here.\n- Classify the regime as Uptrend (HH+HL), Downtrend (LH+LL) or Sideways/Range, and state the timeframe (intraday).\n- Treat support/resistance as ZONES (+/-0.3-0.5%), ranked by touches, time held and volume. Identify liquidity pools above PDH / below PDL.\n- Interpret volume: breakout on >2x 20-day avg = genuine; below-average = suspect; climactic volume = possible exhaustion; price up + volume down = momentum fading.\n- Read VWAP posture: price > rising VWAP = bullish (buy dips to VWAP); price < falling VWAP = bearish (sell rallies); repeated crosses = choppy / no-trade.\n- Weight candles ONLY at key zones (support, resistance, VWAP, trendline).\n- Decode news/events and sector rotation; note if today is an event day.\nOutput strictly via the structured parser: regime(s), timeframe, directional bias, ranked support/resistance zones, liquidity pools, volume read, VWAP posture, dominant sector, event risk, and a 4-6 sentence thesis."
+            }
+          ]
+        }
+      },
+      "id": "09900e36-4401-5504-94f2-568702f9b1d8",
+      "name": "ORIENT Agent",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        940,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-sonnet-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Sonnet 4.6"
+        },
+        "options": {
+          "temperature": 0.3,
+          "maxTokensToSample": 2048
+        }
+      },
+      "id": "54948fb0-d47a-56ef-bb05-f67b307e4a5c",
+      "name": "ORIENT Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        900,
+        600
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "REPLACE_WITH_ANTHROPIC_CREDENTIAL",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "fromJson",
+        "jsonSchemaExample": "{\n  \"regimeNifty\": \"Uptrend\",\n  \"regimeStock\": \"Sideways\",\n  \"timeframe\": \"intraday\",\n  \"bias\": \"long\",\n  \"keyLevels\": {\n    \"support\": [\n      2450.5,\n      2432.0\n    ],\n    \"resistance\": [\n      2510.0,\n      2536.0\n    ]\n  },\n  \"liquidityPools\": [\n    \"stops above PDH 2510\",\n    \"stops below PDL 2440\"\n  ],\n  \"volumeInterpretation\": \"Reclaim of VWAP on ~2.1x 20-day average volume \\u2014 genuine.\",\n  \"vwapPosture\": \"Price above a rising VWAP \\u2014 bullish; buy dips toward VWAP.\",\n  \"dominantSector\": \"Energy\",\n  \"eventRisk\": \"No major scheduled event in the next 30 minutes.\",\n  \"thesis\": \"Nifty is in an intraday uptrend and the stock has reclaimed VWAP on strong volume. Bias favors longs above the 2452 zone toward 2510, with invalidation below 2440. Sector (Energy) is leading. Event risk is low this session.\"\n}"
+      },
+      "id": "b7c188bf-ff4a-5db7-9fb6-6eddfb607339",
+      "name": "ORIENT Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        1080,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ 'OBSERVATION BRIEF (JSON):\\n' + JSON.stringify($('Compute Technical Indicators').first().json.observe) + '\\n\\nMARKET THESIS (Orient, JSON):\\n' + JSON.stringify($('ORIENT Agent').first().json.output) + '\\n\\nTRADER CONSTRAINTS: capital=' + $('Validate & Normalize Input').first().json.capital + ', riskPercent=' + $('Validate & Normalize Input').first().json.riskPercent + ($json.feedback ? ('\\n\\nPRIOR ATTEMPT REJECTED BY RISK VALIDATOR — FIX EXACTLY THESE:\\n' + $json.feedback) : '') + '\\n\\nConstruct the DECIDE-phase trade plan for the symbol in the required structured format, or return decision=NO_TRADE with reasons if the confirmation stack or R:R is not met.' }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are \"OODA-INTRADAY\", a professional intraday trading analyst and mentor modeled on a senior proprietary desk trader with 10+ years in Indian and global markets. You are NOT a tipster, NOT a buy/sell signal bot, and NOT a financial advisor. You are a structured thinking partner. Prime Directive: no setup = no trade; capital preservation > opportunity. Be direct, professional and calm; show reasoning; quantify everything; use probabilistic language (\"favors\", \"tilts toward\"), never \"will\" or \"guaranteed\". Educational analysis only. Not investment advice.\n\nPHASE: DECIDE. Using the Observation Brief and the Market Thesis, construct a single intraday trade plan for the symbol ONLY IF the multi-confirmation filter passes.\n\nCONFIRMATION STACK (need 3 or more): aligned with NIFTY/BANK NIFTY direction; at a clean support/resistance ZONE (not mid-range); confirmation candle; volume confirmation; correct side of VWAP; sector strength aligned; no major event in the next 30 minutes against the position; R:R >= 1:2 (prefer 1:3); India VIX not exploding.\n\nRISK RULES (non-negotiable): risk/trade <= 1% of capital (hard cap 2%); R:R minimum 1:2; stop set BEFORE entry and never widened; position size = (Capital x Risk%) / (Entry - Stop); halve size or stand aside 30 min around RBI/Fed/CPI/results/expiry.\n\nSet stopLoss on the correct side of entry (below for Long, above for Short) and target1 in the direction of the trade. If fewer than 3 confirmations align, or R:R < 1:2, or price is mid-range with no clean zone, you MUST return decision = NO_TRADE with explicit reasons rather than forcing a trade.\n\nIf a PRIOR ATTEMPT was rejected by the deterministic Risk Validator, read its feedback and FIX exactly those issues (tighten stop, re-anchor entry to a real zone, raise the target to meet R:R, or downgrade to NO_TRADE). Never widen risk just to manufacture a trade. Output strictly via the structured parser."
+            }
+          ]
+        }
+      },
+      "id": "229248b4-ee95-5f83-ac9f-63302e8f0a4f",
+      "name": "DECIDE Agent",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [
+        1240,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-sonnet-4-6",
+          "mode": "list",
+          "cachedResultName": "Claude Sonnet 4.6"
+        },
+        "options": {
+          "temperature": 0.1,
+          "maxTokensToSample": 2048
+        }
+      },
+      "id": "c53345fd-224f-5e42-8f4f-0451570cde01",
+      "name": "DECIDE Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        1200,
+        600
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "REPLACE_WITH_ANTHROPIC_CREDENTIAL",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "fromJson",
+        "jsonSchemaExample": "{\n  \"decision\": \"TRADE\",\n  \"instrument\": \"RELIANCE\",\n  \"direction\": \"Long\",\n  \"setupType\": \"VWAP retest\",\n  \"entryZoneLow\": 2452.0,\n  \"entryZoneHigh\": 2456.0,\n  \"trigger\": \"5-min close above 2456 with volume > 1.5x average\",\n  \"stopLoss\": 2442.0,\n  \"target1\": 2476.0,\n  \"target2\": 2496.0,\n  \"target3\": 2516.0,\n  \"riskPerShare\": 13.0,\n  \"riskReward\": 2.3,\n  \"confirmations\": [\n    \"aligned with Nifty uptrend\",\n    \"at VWAP support zone\",\n    \"bullish engulfing candle\",\n    \"volume 2.1x average\"\n  ],\n  \"confirmationCount\": 4,\n  \"invalidation\": \"Loss of VWAP and the 2440 demand zone on a 5-min close.\",\n  \"timeStop\": \"Exit by 11:30 IST if price has not moved toward T1.\",\n  \"rationale\": \"Pullback into a rising VWAP within an intraday uptrend, confirmed by a bullish engulfing on above-average volume; R:R clears 1:2.\"\n}"
+      },
+      "id": "95326524-b60c-5e86-9846-51bb8b032963",
+      "name": "DECIDE Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        1380,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// === RISK / ACT VALIDATOR (deterministic gate + feedback loop) ===\n// attempt counter = how many times THIS node has run in the current execution.\nconst attempt = $runIndex; // 0 on first pass, 1 after first refine, ...\nconst cfg = $('Validate & Normalize Input').first().json;\nconst maxAttempts = cfg.maxAttempts != null ? cfg.maxAttempts : 2;\nconst plan = ($input.first().json.output) || {};\n\n// The model deliberately declined → that is a valid, disciplined outcome.\nif ((plan.decision || '').toString().toUpperCase() === 'NO_TRADE') {\n  return [{ json: {\n    route: 'rejected', attempt, plan,\n    checks: [{ check: 'model_no_trade', pass: true }],\n    failures: [],\n    reasons: ['OODA confirmation stack not met — agent returned NO_TRADE (capital preservation).'],\n    risk: null, feedback: ''\n  }}];\n}\n\nconst checks = [];\nconst failures = [];\nconst ok = (name, cond) => { checks.push({ check: name, pass: !!cond }); if (!cond) failures.push(name); };\n\nconst dir = (plan.direction || '').toString().toLowerCase();\nconst isLong = dir.startsWith('l');\nconst isShort = dir.startsWith('s');\nconst entry = isShort ? Number(plan.entryZoneLow != null ? plan.entryZoneLow : plan.entryZoneHigh)\n                      : Number(plan.entryZoneHigh != null ? plan.entryZoneHigh : plan.entryZoneLow);\nconst stop = Number(plan.stopLoss);\nconst t1 = Number(plan.target1);\nconst conf = Number(plan.confirmationCount != null ? plan.confirmationCount\n            : (Array.isArray(plan.confirmations) ? plan.confirmations.length : 0));\n\nok('direction_valid', isLong || isShort);\nok('entry_numeric', Number.isFinite(entry));\nok('stop_numeric', Number.isFinite(stop));\nok('target_numeric', Number.isFinite(t1));\nok('stop_correct_side', Number.isFinite(entry) && Number.isFinite(stop) && (isLong ? stop < entry : stop > entry));\nok('target_correct_side', Number.isFinite(entry) && Number.isFinite(t1) && (isLong ? t1 > entry : t1 < entry));\nok('confirmations_min_3', conf >= 3);\n\nconst riskPerShare = (Number.isFinite(entry) && Number.isFinite(stop)) ? +Math.abs(entry - stop).toFixed(2) : null;\nconst reward = (Number.isFinite(entry) && Number.isFinite(t1)) ? Math.abs(t1 - entry) : null;\nconst rr = (riskPerShare && reward) ? +(reward / riskPerShare).toFixed(2) : null;\nok('risk_reward_min_2', rr != null && rr >= 2);\n\nconst riskPct = Math.min(Number(cfg.riskPercent) || 1, 2);\nconst riskAmount = +(((Number(cfg.capital) || 0) * riskPct) / 100).toFixed(2);\nconst positionSize = (riskPerShare && riskPerShare > 0) ? Math.floor(riskAmount / riskPerShare) : 0;\nok('position_size_positive', positionSize > 0);\n\nconst risk = {\n  riskPerShare,\n  riskReward: rr,\n  positionSize,\n  riskAmount,\n  capitalAtRiskPct: riskPct,\n  capitalDeployed: (positionSize && Number.isFinite(entry)) ? +(positionSize * entry).toFixed(2) : null\n};\n\nlet route;\nif (failures.length === 0) route = 'approved';\nelse if (attempt < maxAttempts) route = 'refine';\nelse route = 'rejected';\n\nconst feedback = failures.length\n  ? ('Risk Validator rejected attempt ' + (attempt + 1) + '. Failed checks: ' + failures.join(', ') +\n     '. Recomputed risk/share=' + riskPerShare + ', R:R=' + rr + '. Requirements: stop on correct side, '\n     + 'R:R >= 2, and >= 3 confirmations. Fix these precisely or return NO_TRADE.')\n  : '';\n\nreturn [{ json: {\n  route, attempt, plan, checks, failures, risk, feedback,\n  reasons: failures.map((f) => 'Failed: ' + f)\n}}];"
+      },
+      "id": "5186157c-e357-547a-9cc9-a031da466354",
+      "name": "Risk / Act Validator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "d5541cd1-d0b1-568a-a773-200153606e63",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "approved",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "approved"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "47c72f9f-6571-5d9a-8328-05eb58ca9963",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "refine",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "refine"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "id": "7b3c98bf-ded2-5965-92b3-fcd9211a041d",
+                    "leftValue": "={{ $json.route }}",
+                    "rightValue": "rejected",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "rejected"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "31b623c9-f060-5a34-8eca-ee9ebc697db3",
+      "name": "Route Decision",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1780,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// === FEEDBACK LOOP: hand the validator's critique back to the DECIDE agent ===\nconst v = $input.first().json;\nreturn [{ json: { feedback: v.feedback || '', attempt: (v.attempt != null ? v.attempt : 0) + 1 } }];"
+      },
+      "id": "e059e1c4-1099-5cec-8df5-7d790a2d770d",
+      "name": "Refine Loop",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// === REPORT COMPOSER: assemble the final structured report ===\nconst v = $input.first().json;\nconst cfg = $('Validate & Normalize Input').first().json;\nconst observe = $('Compute Technical Indicators').first().json.observe;\nlet orient = null;\ntry { orient = $('ORIENT Agent').first().json.output; } catch (e) {}\n\nconst disclaimer = 'Educational analysis only. Not investment advice. Verify independently.';\nconst approved = v.route === 'approved';\n\nconst report = {\n  disclaimer,\n  agent: 'OODA-INTRADAY',\n  symbol: cfg.symbol,\n  capital: cfg.capital,\n  riskPercent: cfg.riskPercent,\n  generatedAt: new Date().toISOString(),\n  status: approved ? 'TRADE_PLAN' : 'NO_TRADE',\n  observe,\n  orient,\n  decide: approved ? v.plan : { decision: 'NO_TRADE' },\n  risk: approved ? v.risk : null,\n  validation: {\n    route: v.route,\n    attempts: (v.attempt != null ? v.attempt : 0) + 1,\n    checks: v.checks || [],\n    failures: v.failures || [],\n    reasons: v.reasons || []\n  }\n};\nreturn [{ json: report }];"
+      },
+      "id": "98cfc1b3-800f-5ce2-a749-724d001066b6",
+      "name": "Compose Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2040,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "a9f0ec07-43a8-5d2a-addb-e50c03a8f5c0",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2280,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 🔍 OBSERVE — Data Gathering Agent\nFan-out HTTP calls (fail-soft) collect intraday 5m candles, daily levels, news headlines and macro proxies, then a Code node computes VWAP, EMA20/50, RSI14, ATR14, PDH/PDL/PDC, opening range and volume vs 20-day average → **Market Observation Brief**.",
+        "height": 200,
+        "width": 620,
+        "color": 5
+      },
+      "id": "e201a025-2299-5c5c-bd54-8b34c459d202",
+      "name": "note-observe",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        120,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 🧭 ORIENT — Synthesis Agent\nLLM classifies regime, maps S/R zones, reads volume & VWAP posture, decodes news/sector rotation → **Market Thesis** (structured).",
+        "height": 200,
+        "width": 420,
+        "color": 4
+      },
+      "id": "4d1790c5-cab0-5bd8-844d-a02c7a5388c5",
+      "name": "note-orient",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        900,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 🎯 DECIDE — Trade Construction Agent\nLLM applies the 3+ confirmation stack and risk rules → structured **Trade Plan** or **NO_TRADE**. Receives validator feedback on refine loops.",
+        "height": 200,
+        "width": 420,
+        "color": 3
+      },
+      "id": "2f7adfee-55bd-57dd-a53f-372aadb8da95",
+      "name": "note-decide",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1180,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## ⚡ ACT — Risk Validator + Router (feedback loop)\nDeterministic Code gate checks stop side, R:R ≥ 2, ≥3 confirmations and recomputes position size. Switch routes:\n• **approved** → Compose Report\n• **refine** → loop back to DECIDE with critique (max 2 retries)\n• **rejected** → NO_TRADE report.",
+        "height": 220,
+        "width": 640,
+        "color": 6
+      },
+      "id": "ea18d642-cf79-57cb-9c07-f260ee913078",
+      "name": "note-act",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1640,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 🚪 I/O\nPOST `/webhook/stock-analysis` with `{ symbol, capital, riskPercent }` (Manual Trigger for testing). Returns the structured OODA report via Respond node.",
+        "height": 160,
+        "width": 240,
+        "color": 7
+      },
+      "id": "81cd49be-f5d2-5361-abe9-331f9f33a97d",
+      "name": "note-io",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -360,
+        40
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate & Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger (test)": {
+      "main": [
+        [
+          {
+            "node": "Validate & Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate & Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Market Data (5m)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Daily Levels",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "News (Google RSS)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Macro & Global",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Market Data (5m)": {
+      "main": [
+        [
+          {
+            "node": "Merge Observe Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Levels": {
+      "main": [
+        [
+          {
+            "node": "Merge Observe Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "News (Google RSS)": {
+      "main": [
+        [
+          {
+            "node": "Merge Observe Data",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Macro & Global": {
+      "main": [
+        [
+          {
+            "node": "Merge Observe Data",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Merge Observe Data": {
+      "main": [
+        [
+          {
+            "node": "Compute Technical Indicators",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Technical Indicators": {
+      "main": [
+        [
+          {
+            "node": "ORIENT Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ORIENT Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "ORIENT Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ORIENT Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "ORIENT Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ORIENT Agent": {
+      "main": [
+        [
+          {
+            "node": "DECIDE Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DECIDE Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "DECIDE Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DECIDE Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "DECIDE Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DECIDE Agent": {
+      "main": [
+        [
+          {
+            "node": "Risk / Act Validator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risk / Act Validator": {
+      "main": [
+        [
+          {
+            "node": "Route Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Decision": {
+      "main": [
+        [
+          {
+            "node": "Compose Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Refine Loop",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compose Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refine Loop": {
+      "main": [
+        [
+          {
+            "node": "DECIDE Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Report": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "templateId": "ooda-intraday-stock-analysis"
+  },
+  "tags": [
+    {
+      "name": "trading"
+    },
+    {
+      "name": "ai-agent"
+    },
+    {
+      "name": "ooda"
+    }
+  ]
+}

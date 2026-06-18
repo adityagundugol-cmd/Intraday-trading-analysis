@@ -1,0 +1,90 @@
+{
+  "disclaimer": "Educational analysis only. Not investment advice. Verify independently.",
+  "agent": "OODA-INTRADAY",
+  "symbol": "RELIANCE",
+  "capital": 100000,
+  "riskPercent": 1,
+  "generatedAt": "2026-06-18T05:42:11.000Z",
+  "status": "TRADE_PLAN",
+  "observe": {
+    "symbol": "RELIANCE",
+    "yahooSymbol": "RELIANCE.NS",
+    "asOf": "2026-06-18T05:42:10.000Z",
+    "price": { "last": 2466.4, "prevClose": 2451.0, "dayChangePct": 0.63 },
+    "levels": {
+      "pdh": 2469.8, "pdl": 2438.2, "pdc": 2451.0,
+      "openingRangeHigh": 2463.5, "openingRangeLow": 2452.1
+    },
+    "technicals": {
+      "vwap": 2458.7, "ema20": 2447.9, "ema50": 2431.2,
+      "rsi14": 58.4, "atr14": 24.6,
+      "priceVsVwap": "above", "emaTrend": "up"
+    },
+    "volume": { "lastBar": 184320, "avg20Daily": 9120000 },
+    "macro": [
+      { "symbol": "^NSEI", "last": 23512.0, "changePct": 0.42 },
+      { "symbol": "^INDIAVIX", "last": 12.9, "changePct": -3.1 },
+      { "symbol": "CL=F", "last": 78.4, "changePct": -0.6 }
+    ],
+    "news": [
+      "Reliance Industries gains as brokerages raise target on retail growth",
+      "RIL new energy capex on track, says management"
+    ],
+    "dataQuality": { "intradayBars": 38, "dailyBars": 63, "newsCount": 2, "warnings": [] }
+  },
+  "orient": {
+    "regimeNifty": "Uptrend",
+    "regimeStock": "Uptrend",
+    "timeframe": "intraday",
+    "bias": "long",
+    "keyLevels": { "support": [2458.0, 2451.0], "resistance": [2470.0, 2484.0] },
+    "liquidityPools": ["stops above PDH 2469.8", "stops below PDL 2438.2"],
+    "volumeInterpretation": "Holding above VWAP with steady volume; no exhaustion signal.",
+    "vwapPosture": "Price above a rising VWAP — bullish; buy dips toward 2459.",
+    "dominantSector": "Energy",
+    "eventRisk": "No major scheduled event in the next 30 minutes.",
+    "thesis": "Nifty and the stock are both in an intraday uptrend with price holding above a rising VWAP. Bias favors longs on a pullback into the 2458 VWAP/support zone toward the 2470 resistance and PDH liquidity above. Invalidation is a 5-min close back below 2451 (PDC). India VIX is low and falling, supporting trend continuation."
+  },
+  "decide": {
+    "decision": "TRADE",
+    "instrument": "RELIANCE",
+    "direction": "Long",
+    "setupType": "VWAP retest",
+    "entryZoneLow": 2458.0,
+    "entryZoneHigh": 2461.0,
+    "trigger": "5-min close above 2461 with volume > 1.5x average",
+    "stopLoss": 2449.0,
+    "target1": 2485.0,
+    "target2": 2497.0,
+    "target3": 2509.0,
+    "riskPerShare": 12.0,
+    "riskReward": 2.0,
+    "confirmations": ["aligned with Nifty uptrend", "at VWAP/PDC support zone", "above rising VWAP", "Energy sector leading"],
+    "confirmationCount": 4,
+    "invalidation": "5-min close below 2451 (PDC) or loss of VWAP.",
+    "timeStop": "Exit by 12:30 IST if price has not pushed toward T1.",
+    "rationale": "Pullback long into a rising VWAP inside an intraday uptrend with sector tailwind."
+  },
+  "risk": {
+    "riskPerShare": 12.0,
+    "riskReward": 2.0,
+    "positionSize": 83,
+    "riskAmount": 1000.0,
+    "capitalAtRiskPct": 1,
+    "capitalDeployed": 204263.0
+  },
+  "validation": {
+    "route": "approved",
+    "attempts": 2,
+    "checks": [
+      { "check": "direction_valid", "pass": true },
+      { "check": "stop_correct_side", "pass": true },
+      { "check": "target_correct_side", "pass": true },
+      { "check": "confirmations_min_3", "pass": true },
+      { "check": "risk_reward_min_2", "pass": true },
+      { "check": "position_size_positive", "pass": true }
+    ],
+    "failures": [],
+    "reasons": []
+  }
+}

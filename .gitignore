@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Local n8n exports / scratch
+*.local.json
