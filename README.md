@@ -176,8 +176,11 @@ runs **at most 3 times** before forcing a `NO_TRADE`, so it can never spin forev
 1. **Import** `workflow/OODA-Intraday-Stock-Analysis.json` in n8n
    (*Workflows → ⋯ → Import from File*). Targets n8n with LangChain nodes
    (self-hosted `1.6x+` or n8n Cloud).
-2. **Set credentials** — open both `ORIENT Model` / `DECIDE Model` nodes and select
-   (or create) an **Anthropic** credential. (The JSON ships a placeholder id.)
+2. **Set credentials** — open both `ORIENT Model` / `DECIDE Model` nodes and, under
+   **Credential to connect with**, create or select an **Anthropic** credential
+   (paste your API key). Both nodes use the same credential. Until this is done the
+   nodes show *"Node does not have any credentials set"* — that is expected on first
+   import, not a bug.
 3. **Test** — run from the **Manual Trigger** (defaults to `RELIANCE`), or activate
    and POST:
    ```bash

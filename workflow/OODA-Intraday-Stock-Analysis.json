@@ -265,13 +265,7 @@
       "position": [
         900,
         600
-      ],
-      "credentials": {
-        "anthropicApi": {
-          "id": "REPLACE_WITH_ANTHROPIC_CREDENTIAL",
-          "name": "Anthropic account"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -329,13 +323,7 @@
       "position": [
         1200,
         600
-      ],
-      "credentials": {
-        "anthropicApi": {
-          "id": "REPLACE_WITH_ANTHROPIC_CREDENTIAL",
-          "name": "Anthropic account"
-        }
-      }
+      ]
     },
     {
       "parameters": {

@@ -545,7 +545,7 @@ add_node("ORIENT Agent", "@n8n/n8n-nodes-langchain.chainLlm", 1.6, [940, 360], {
 add_node("ORIENT Model", "@n8n/n8n-nodes-langchain.lmChatAnthropic", 1.3, [900, 600], {
     "model": {"__rl": True, "value": MODEL_ORIENT, "mode": "list", "cachedResultName": "Claude Sonnet 4.6"},
     "options": {"temperature": 0.3, "maxTokensToSample": 2048},
-}, credentials={"anthropicApi": {"id": "REPLACE_WITH_ANTHROPIC_CREDENTIAL", "name": "Anthropic account"}})
+})  # Attach an Anthropic credential in the n8n UI after import (Credential to connect with).
 add_node("ORIENT Parser", "@n8n/n8n-nodes-langchain.outputParserStructured", 1.2, [1080, 600], {
     "schemaType": "fromJson",
     "jsonSchemaExample": json.dumps(ORIENT_EXAMPLE, indent=2),
@@ -572,7 +572,7 @@ add_node("DECIDE Agent", "@n8n/n8n-nodes-langchain.chainLlm", 1.6, [1240, 360], 
 add_node("DECIDE Model", "@n8n/n8n-nodes-langchain.lmChatAnthropic", 1.3, [1200, 600], {
     "model": {"__rl": True, "value": MODEL_DECIDE, "mode": "list", "cachedResultName": "Claude Sonnet 4.6"},
     "options": {"temperature": 0.1, "maxTokensToSample": 2048},
-}, credentials={"anthropicApi": {"id": "REPLACE_WITH_ANTHROPIC_CREDENTIAL", "name": "Anthropic account"}})
+})  # Attach an Anthropic credential in the n8n UI after import (Credential to connect with).
 add_node("DECIDE Parser", "@n8n/n8n-nodes-langchain.outputParserStructured", 1.2, [1380, 600], {
     "schemaType": "fromJson",
     "jsonSchemaExample": json.dumps(DECIDE_EXAMPLE, indent=2),
